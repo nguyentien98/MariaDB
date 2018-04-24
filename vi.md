@@ -4,11 +4,11 @@
 
 ## Một bài học nhỏ trong "chỉ mục ghép" ("chỉ mục hỗn hợp")
 
-Tài liệu này bắt đầu một cách tầm thường và có lẽ nhàm chán, nhưng xây dựng tới nhiều thông tin thú vị, có lẽ là điều bạn không nhận ra về cách chỉ mục MariaDB và MySql hoạt động.
+Tài liệu này mở đầu bằng những thứ có vẻ tầm thường và có thể nhàm chán, nhưng càng về sau tài liệu được xây dựng bởi những thông tin thú vị hơn. Những điều đó có thể là những điều bạn chưa biết về cách hoạt động của chỉ mục trong MariaDB và MySql.
 
-Nó cũng giải thích [EXPLAIN][1] (to some extent).
+Nó cũng giải thích cho [EXPLAIN][1] (trong vài khía cạnh nào đó).
 
-(Hầu hết điều này áp dụng cho nhánh non-SQL của cơ sở dữ liệu)
+(Hầu hết những thứ được này áp dụng cho những cơ sở dữ liệu không phải là MySQL)
 
 ## Câu truy vấn để bàn luận
 
@@ -31,9 +31,9 @@ Bảng `tổng thống` có sẵn như sau:
     ...
     
 
-("Andrew Johnson" đã được chọn cho bài học này vì sự lặp lại)
+("Andrew Johnson" đã được chọn cho bài học này vì có sự lặp lại)
 
-(Những)Chỉ mục nào sẽ là tốt nhất cho câu hỏi đó ? Cụ thể cái nào sẽ tốt nhất cho
+Chỉ mục nào sẽ là tốt nhất cho câu hỏi này? Cụ thể hơn là, những gì sẽ là tốt nhất cho câu truy vấn này:
     
     
         SELECT  term
@@ -53,7 +53,7 @@ Một vài chỉ mục để thử
 
 ## Không chỉ mục
 
-Tốt rồi, bây giờ tôi đang phán đoán một chút ở đây. Tôi có một khóa chính là `seq`, nhưng nó ko có ích trong câu truy vấn chúng ta đang học.
+Tốt rồi, bây giờ tôi đang phán đoán một chút ở đây. Tôi có một khóa chính là `seq`, nhưng nó ko có ích trong câu truy vấn chúng ta đang tìm hiểu.
     
     
     mysql>  SHOW CREATE TABLE Presidents G
@@ -88,9 +88,9 @@ Tốt rồi, bây giờ tôi đang phán đoán một chút ở đây. Tôi có 
             Extra: Using where
     
 
-## Các chi tiết thực hiện
+## Chi tiết cài đặt
 
-Đầu tiên, hãy miêu tả InnoDB lưu trữ và sử dụng các chỉ mục.
+Đầu tiên, hãy mô tả cách mà InnoDB lưu trữ và sử dụng các chỉ mục.
 
 * Dữ liệu và khóa chính được nhóm lại cùng nhau trong BTree. 
 * Tra cứu BTree khá nhanh và hiệu quả. Đối với một bảng triệu hàng có thể có 3 mức BTree và hai mức cao nhất có thể được lưu trong bộ nhớ cache. 
@@ -124,9 +124,9 @@ MySQL hiếm khi sử dụng nhiều hơn một chỉ mục tại một thời �
             Extra: Using where
     
 
-## "Index Merge Intersect"
+## "Hợp nhất các chỉ mục"
 
-OK, vậy bạn có thể thực sự thông minh và quyết định rằng MySQL nên đủ thông minh để sử dụng cả hai chỉ mục tên để nhận câu trả lời. Nó được gọi là  "Intersect". 1\. Sử dụng Chỉ mục(last_name), tìm 2 chỉ mục nhập vào với last_name = 'Johnson'; get (7, 17) 2\. Sử dụng Chỉ mục(first_name), tìm hai chỉ mục nhập vào với first_name = 'Andrew'; get (17, 36) 3\. "And" hai danh sách với nhau (7,17) & (17,36) = (17) 4\. Tiếp cận dữ liệu sử dụng seq = (17) để lấy hàng cho Andrew Johnson. 5\. Đưa kết quả (1865-1869).
+Ok, vậy bạn thực sự thông minh và cho rằng MySQL đủ thông minh để sử dụng cả hai chỉ mục tên để tìm được câu trả lời. Nó được gọi là  "điểm giao". 1\. Sử dụng Chỉ mục(last_name), tìm 2 chỉ mục nhập vào với last_name = 'Johnson'; get (7, 17) 2\. Sử dụng Chỉ mục(first_name), tìm hai chỉ mục nhập vào với first_name = 'Andrew'; get (17, 36) 3\. "And" hai danh sách với nhau (7,17) & (17,36) = (17) 4\. Tiếp cận dữ liệu sử dụng seq = (17) để lấy hàng cho Andrew Johnson. 5\. Đưa kết quả (1865-1869).
     
     
                id: 1
@@ -166,7 +166,7 @@ Cái này được gọi là một chỉ mục "ghép" hoặc "hỗn hợp" khi 
 
 ## "Bao trùm": Chỉ mục(last_name, first_name, term)
 
-Ngạc nhiên chưa! CHúng ta thực sự có thể làm tốt hơn. Một chỉ mục "bao trùm" tất cả các trường của SELECT được tìm thấy trong chỉ mục. Nó có thêm điểm cộng là không phải tiếp cận vào "dữ liệu" để hoàn thành nhiệm vụ. 1\. Tìm kiếm BTree để lấy được chỉ mục có được chính xác hàng chỉ mục cho Johnson+Andrew; get seq = (17). 2\. Đưa ra kết quả (1865-1869). BTree "dữ liệu" không được chạm vào; đây là một cải tiến so với "ghép".
+Ngạc nhiên chưa! Chúng ta thực sự có thể làm tốt hơn. Một chỉ mục "bao trùm" tất cả các trường của SELECT được tìm thấy trong chỉ mục. Nó có thêm điểm cộng là không phải tiếp cận vào "dữ liệu" để hoàn thành nhiệm vụ. 1\. Tìm kiếm BTree để lấy được chỉ mục có được chính xác hàng chỉ mục cho Johnson+Andrew; get seq = (17). 2\. Đưa ra kết quả (1865-1869). BTree "dữ liệu" không được chạm vào; đây là một cải tiến so với "ghép".
     
     
         ... ADD INDEX covering(last_name, first_name, term);
