@@ -14,7 +14,7 @@ Nó cũng giải thích cho [EXPLAIN][1] (trong vài khía cạnh nào đó).
 
 Câu hỏi là "Khi nào Andrew Johnson là tổng thống của nước Mỹ?".
 
-Bảng `tổng thống` có sẵn như sau:
+Bảng `Presidents` có sẵn như sau:
     
     
     +-----+------------+----------------+-----------+
@@ -75,20 +75,20 @@ Tốt rồi, bây giờ tôi đang phán đoán một chút ở đây. Tôi có 
     |  1 | SIMPLE      | Presidents | ALL  | NULL          | NULL | NULL    | NULL |   44 | Using where |
     +----+-------------+------------+------+---------------+------+---------+------+------+-------------+
     
-    # Or, using the other form of display:  EXPLAIN ... G
+    # Hoặc, bằng cách sử dụng hình thức hiển thị khác:  EXPLAIN ... G
                id: 1
       select_type: SIMPLE
             table: Presidents
-             type: ALL        <-- Implies table scan
+             type: ALL        <-- Ngụ ý là scan bảng
     possible_keys: NULL
-              key: NULL       <-- Implies that no index is useful, hence table scan
+              key: NULL       <-- Ngụ ý là không có index nào hữu ích, do đó scan bảng
           key_len: NULL
               ref: NULL
-             rows: 44         <-- That's about how many rows in the table, so table scan
+             rows: 44         <-- Điều này là có bao nhiêu hàng trong bảng, vậy scan bảng
             Extra: Using where
     
 
-## Chi tiết cài đặt
+## Chi tiết triển khai
 
 Đầu tiên, hãy mô tả cách mà InnoDB lưu trữ và sử dụng các chỉ mục.
 
@@ -101,12 +101,12 @@ Với MyISAM, khóa chính không được lưu cùng dữ liệu, vì vậy hã
 
 ## Chỉ mục(first_name), Chỉ mục(last_name)
 
-Người mới làm quen, một khi anh ấy biết về lập chỉ mục, quyết định lập chỉ mục nhiều cột, tất cả trong một lần. Nhưng...
+Người mới làm quen, một khi anh ấy biết về lập chỉ mục, quyết định lập chỉ mục nhiều cột, mỗi cái một lần. Nhưng...
 
 MySQL hiếm khi sử dụng nhiều hơn một chỉ mục tại một thời điểm trong một truy vấn. Vì vậy, nó sẽ phân tích các chỉ mục có thể.
 
 * first_name -- có hai hàng khả thi (một lần tra cứu BTree, sau đó quét liên tục) 
-* last_name -- có hai hàng khả this Hãy nói nó chọn last_name. Đây là một bước thực hiện SELECT: 1\. Sử dụng Chỉ mục(last_name), tìm 2 mục nhập với chỉ mục last_name = 'Johnson'. 2\. Lấy khóa chính (ngầm được thêm vào mỗi chỉ số phụ trong InnoDB); get (17, 36). 3\. Tiếp cận dứ liệu bằng cách sử dụng seq = (17, 36) để lấy hàng cho Andrew Johnson and Lyndon B. Johnson. 4\. Sử dụng phần còn lại của mệnh đề WHERE lọc tất cả trừ hàng mong muốn. 5\. Đưa ra kết quả (1865-1869). 
+* last_name -- có hai hàng khả thi. Giả sử nó chọn last_name. Đây là một bước thực hiện SELECT: 1\. Sử dụng Chỉ mục(last_name), tìm 2 mục nhập với chỉ mục last_name = 'Johnson'. 2\. Lấy khóa chính (ngầm được thêm vào mỗi chỉ số phụ trong InnoDB); get (17, 36). 3\. Tiếp cận dứ liệu bằng cách sử dụng seq = (17, 36) để lấy hàng cho Andrew Johnson and Lyndon B. Johnson. 4\. Sử dụng phần còn lại của mệnh đề WHERE lọc tất cả trừ hàng mong muốn. 5\. Đưa ra kết quả (1865-1869). 
     
     
     mysql>  EXPLAIN  SELECT  term
@@ -124,7 +124,7 @@ MySQL hiếm khi sử dụng nhiều hơn một chỉ mục tại một thời �
             Extra: Using where
     
 
-## "Hợp nhất các chỉ mục"
+## "Index Merge Intersect" 
 
 Ok, vậy bạn thực sự thông minh và cho rằng MySQL đủ thông minh để sử dụng cả hai chỉ mục tên để tìm được câu trả lời. Nó được gọi là  "điểm giao". 1\. Sử dụng Chỉ mục(last_name), tìm 2 chỉ mục nhập vào với last_name = 'Johnson'; get (7, 17) 2\. Sử dụng Chỉ mục(first_name), tìm hai chỉ mục nhập vào với first_name = 'Andrew'; get (17, 36) 3\. "And" hai danh sách với nhau (7,17) & (17,36) = (17) 4\. Tiếp cận dữ liệu sử dụng seq = (17) để lấy hàng cho Andrew Johnson. 5\. Đưa kết quả (1865-1869).
     
@@ -188,10 +188,10 @@ Mọi thứ giống như là sử dụng "ghép", ngoại trừ việc bổ sung
 ## Các biến thể 
 
 * Điều gì sẽ xảy ra khi bạn xáo trộn các trường trong câu lệnh WHERE? Trả lời: Thứ tự mọi thứ trong AND không quan trọng. 
-* Điều gì sẽ xảy ra khi bạn xáo trộn các trường trong Chỉ mục? Trả lừoi: Nó có thể tạo ra sự khác biệt lớn. More in a minute. 
+* Điều gì sẽ xảy ra khi bạn xáo trộn các trường trong Chỉ mục? Trả lời: Nó có thể tạo ra sự khác biệt lớn. More in a minute. 
 * Điều gì sẽ xảy ra nếu có các trường bổ sung ở cuối? Trả lời: một chút tác hại; có thể rất nhiều cái tốt(ví dụ, 'bao trùm'). 
-* Thừa thãi? Đó là, Điều gì sẽ xảy ra khi có cả hai: Chỉ mục(a), Chỉ mục(a,b)? Trả lời : Thừa chi phí gì đó trong INSERTs; nó hiếm khi sử dụng cho SELECTs. 
-* Tiền tố? Đó là, Chỉ mục(last_name(5). first_name(5)) Trả lời: đừng bận tâm, nó hiếm khi giúp ích, và thường làm hại. (Chi tiết trong một chủ đề khác.) 
+* Thừa thãi? Đúng vậy, Điều gì sẽ xảy ra khi có cả hai: Chỉ mục(a), Chỉ mục(a,b)? Trả lời : Thừa chi phí gì đó trong INSERTs; nó hiếm khi sử dụng cho SELECTs. 
+* Tiền tố? Đúng vậy, Chỉ mục(last_name(5). first_name(5)) Trả lời: đừng bận tâm, nó hiếm khi giúp ích, và thường làm hại. (Chi tiết trong một chủ đề khác.) 
 
 ## Ví dụ thêm:
     
